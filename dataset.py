@@ -91,7 +91,7 @@ train_transforms = Compose([
     NormalizeIntensityd(keys=['image'], nonzero=True, channel_wise=True),
     DivisiblePadd(keys=['image', 'mask'], k=16),
     ResizeWithPadOrCropd(keys=['image', 'mask'], spatial_size=(256, 256, 80)),
-    ToTensord(keys=['image', 'mask'], device="cuda" if torch.cuda.is_available() else "cpu")
+    ToTensord(keys=['image', 'mask'])
 ])
 
 val_transforms = Compose([
@@ -99,7 +99,7 @@ val_transforms = Compose([
     Spacingd(keys=['image', 'mask'], pixdim=(1.0, 1.0, 1.0), mode=('bilinear', 'nearest')),
     NormalizeIntensityd(keys=['image'], nonzero=True, channel_wise=True),
     ResizeWithPadOrCropd(keys=['image', 'mask'], spatial_size=(256, 256, 80)),
-    ToTensord(keys=['image', 'mask'], device="cuda" if torch.cuda.is_available() else "cpu")
+    ToTensord(keys=['image', 'mask'])
 ])
 
 
