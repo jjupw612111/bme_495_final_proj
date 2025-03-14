@@ -13,7 +13,6 @@ from monai.transforms import (
     EnsureChannelFirstd,
     DivisiblePadd,
     ResizeWithPadOrCropd  # Added for resizing
-    
 )
 
 class CirrMRI3DDataset(Dataset):
@@ -52,17 +51,27 @@ class CirrMRI3DDataset(Dataset):
         img_array = img_nii.get_fdata()
         mask_array = mask_nii.get_fdata()
 
+        # Compute true volume from the original mask (before any transforms)
+        # Here, we assume the mask is binary (segmented region > 0)
+        voxel_dims = mask_nii.header.get_zooms()  # voxel dimensions (e.g. in mm)
+        voxel_volume = float(voxel_dims[0] * voxel_dims[1] * voxel_dims[2])
+        true_volume = (mask_array > 0).sum() * voxel_volume
+
         # Optionally: Convert the numpy arrays to PyTorch tensors.
-        # Note: For segmentation masks, it's common to use dtype=torch.long.
         img_tensor = torch.tensor(img_array, dtype=torch.float32)
         mask_tensor = torch.tensor(mask_array, dtype=torch.long)
 
         # Add a channel dimension if your network expects one.
-        # For a 3D image, if the shape is (H, W, D), then unsqueeze to get (1, H, W, D).
         if img_tensor.ndim == 3:
             img_tensor = img_tensor.unsqueeze(0)
 
-        sample = {'image': img_tensor, 'mask': mask_tensor, 'id': int(os.path.splitext(os.path.basename(img_filename))[0])}
+        # Prepare the sample dictionary.
+        sample = {
+            'image': img_tensor,
+            'mask': mask_tensor,
+            'id': int(os.path.splitext(os.path.basename(img_filename))[0]),
+            'true_volume': true_volume
+        }
 
         # Apply transformation if provided
         if self.transform:
@@ -70,6 +79,7 @@ class CirrMRI3DDataset(Dataset):
 
         return sample
 
+# Example transformations remain the same.
 train_transforms = Compose([
     EnsureChannelFirstd(keys=['image', 'mask']),
     Spacingd(keys=['image', 'mask'], pixdim=(1.0, 1.0, 1.0), mode=('bilinear', 'nearest')),
@@ -84,7 +94,6 @@ train_transforms = Compose([
     ToTensord(keys=['image', 'mask'])
 ])
 
-# For validation (NOT TESTING), only apply deterministic preprocessing.
 val_transforms = Compose([
     EnsureChannelFirstd(keys=['image', 'mask']),
     Spacingd(keys=['image', 'mask'], pixdim=(1.0, 1.0, 1.0), mode=('bilinear', 'nearest')),
@@ -109,6 +118,6 @@ def get_dataloaders(base_dir, modality, train_batch_size=2, valid_batch_size=2, 
     return train_loader, valid_loader, test_loader
 
 # Example usage:
-# base_dir = "/content/drive/MyDrive/cirrmri/CirrMRI600+"
-# modality = "Cirrhosis_T1_3D"  # or "Cirrhosis_T2_3D"
-# train_loader, valid_loader, test_loader = get_dataloaders(base_dir, modality)
+base_dir = "/content/drive/MyDrive/cirrmri/CirrMRI600+"
+modality = "Cirrhosis_T1_3D"  # or "Cirrhosis_T2_3D"
+train_loader, valid_loader, test_loader = get_dataloaders(base_dir, modality)
