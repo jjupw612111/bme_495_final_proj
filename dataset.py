@@ -102,9 +102,9 @@ def get_dataloaders(base_dir, modality, train_batch_size=2, valid_batch_size=2, 
     valid_dataset = CirrMRI3DDataset(base_dir, modality, split='valid', transform=val_transforms)
     test_dataset  = CirrMRI3DDataset(base_dir, modality, split='test', transform=None)
 
-    train_loader = DataLoader(train_dataset, batch_size=train_batch_size, shuffle=True, num_workers=4)
-    valid_loader = DataLoader(valid_dataset, batch_size=valid_batch_size, shuffle=False, num_workers=4)
-    test_loader  = DataLoader(test_dataset, batch_size=test_batch_size, shuffle=False, num_workers=4)
+    train_loader = DataLoader(train_dataset, batch_size=train_batch_size, shuffle=True, num_workers=2)
+    valid_loader = DataLoader(valid_dataset, batch_size=valid_batch_size, shuffle=False, num_workers=2)
+    test_loader  = DataLoader(test_dataset, batch_size=test_batch_size, shuffle=False, num_workers=2)
 
     return train_loader, valid_loader, test_loader
 
