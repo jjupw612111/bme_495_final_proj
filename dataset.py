@@ -11,7 +11,9 @@ from monai.transforms import (
     RandShiftIntensityd,
     NormalizeIntensityd,
     EnsureChannelFirstd,
-    DivisiblePadd
+    DivisiblePadd,
+    ResizeWithPadOrCropd  # Added for resizing
+    
 )
 
 class CirrMRI3DDataset(Dataset):
@@ -78,6 +80,7 @@ train_transforms = Compose([
     RandShiftIntensityd(keys=['image'], offsets=0.1, prob=0.5),
     NormalizeIntensityd(keys=['image'], nonzero=True, channel_wise=True),
     DivisiblePadd(keys=['image', 'mask'], k=16),
+    ResizeWithPadOrCropd(keys=['image', 'mask'], spatial_size=(256, 256, 80)),
     ToTensord(keys=['image', 'mask'])
 ])
 
@@ -86,6 +89,7 @@ val_transforms = Compose([
     EnsureChannelFirstd(keys=['image', 'mask']),
     Spacingd(keys=['image', 'mask'], pixdim=(1.0, 1.0, 1.0), mode=('bilinear', 'nearest')),
     NormalizeIntensityd(keys=['image'], nonzero=True, channel_wise=True),
+    ResizeWithPadOrCropd(keys=['image', 'mask'], spatial_size=(256, 256, 80)),
     ToTensord(keys=['image', 'mask'])
 ])
 
@@ -96,7 +100,7 @@ def get_dataloaders(base_dir, modality, train_batch_size=2, valid_batch_size=2, 
     """
     train_dataset = CirrMRI3DDataset(base_dir, modality, split='train', transform=train_transforms)
     valid_dataset = CirrMRI3DDataset(base_dir, modality, split='valid', transform=val_transforms)
-    test_dataset  = CirrMRI3DDataset(base_dir, modality, split='test', transform=transform)
+    test_dataset  = CirrMRI3DDataset(base_dir, modality, split='test', transform=None)
 
     train_loader = DataLoader(train_dataset, batch_size=train_batch_size, shuffle=True, num_workers=4)
     valid_loader = DataLoader(valid_dataset, batch_size=valid_batch_size, shuffle=False, num_workers=4)
