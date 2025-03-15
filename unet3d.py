@@ -45,9 +45,9 @@ class Conv3DBlock(nn.Module):
         out = self.relu(self.bn1(self.conv1(x)))
         out = self.relu(self.bn2(self.conv2(out)))
         if self.bottleneck:
-            return out, out  # Return same feature for skip (won't be used) and for further processing.
+            return out, out#return same feature for skip (won't be used) and for further processing.
         else:
-            return self.pooling(out), out  # Return pooled output and residual (skip connection)
+            return self.pooling(out), out  #return pooled output and residual (skip connection)
 
 class UpConv3DBlock(nn.Module):
     """
@@ -57,7 +57,7 @@ class UpConv3DBlock(nn.Module):
     """
     def __init__(self, in_channels, res_channels=0, last_layer=False, num_classes=None):
         super(UpConv3DBlock, self).__init__()
-        # Upsample: transpose conv with kernel 2 and stride 2.
+        #upsample: transpose conv with kernel 2 and stride 2.
         self.upconv1 = nn.ConvTranspose3d(in_channels, in_channels, kernel_size=2, stride=2)
         self.conv1 = nn.Conv3d(in_channels + res_channels, in_channels // 2, kernel_size=3, padding=1)
         self.bn1 = nn.BatchNorm3d(in_channels // 2)
@@ -71,7 +71,7 @@ class UpConv3DBlock(nn.Module):
             
     def forward(self, x, residual):
         x = self.upconv1(x)
-        # With same padding, the upsampled x and the residual should have matching spatial dimensions.
+        #wth same padding, the upsamped x and the residual should have matching spatial dimensions.
         if x.shape[2:] != residual.shape[2:]:
             residual = F.interpolate(residual, size=x.shape[2:], mode='trilinear', align_corners=True)
         x = torch.cat([x, residual], dim=1)
@@ -83,7 +83,7 @@ class UpConv3DBlock(nn.Module):
         return x
 
 ########################################
-# Single-Stream UNet3D (from your provided code)
+#Vanilla 3D U-Net
 ########################################
 
 class UNet3D(nn.Module):
@@ -99,19 +99,20 @@ class UNet3D(nn.Module):
         self.s_block1 = UpConv3DBlock(level2, res_channels=level1, last_layer=True, num_classes=num_classes)
     
     def forward(self, x):
-        # Analysis path
+        #encoder path
         out, res1 = self.a_block1(x)
         out, res2 = self.a_block2(out)
         out, res3 = self.a_block3(out)
-        out, _ = self.bottleNeck(out)  # Bottleneck
-        # Synthesis path
+        #bottleneck
+        out, _ = self.bottleNeck(out) 
+        #decoder path
         out = self.s_block3(out, res3)
         out = self.s_block2(out, res2)
         out = self.s_block1(out, res1)
         return out
 
 ########################################
-# Dual-Stream UNet3D with Separate Decoders for T1 and T2
+#DS 3D U-NET
 ########################################
 
 class DualStreamUNet3D(nn.Module):
@@ -124,7 +125,7 @@ class DualStreamUNet3D(nn.Module):
         super(DualStreamUNet3D, self).__init__()
         level1, level2, level3 = level_channels
         
-        # Analysis paths for T1 and T2
+        #encoder path
         self.a_block1_T1 = Conv3DBlock(in_channels, level1)
         self.a_block2_T1 = Conv3DBlock(level1, level2)
         self.a_block3_T1 = Conv3DBlock(level2, level3)
@@ -135,18 +136,18 @@ class DualStreamUNet3D(nn.Module):
         self.a_block3_T2 = Conv3DBlock(level2, level3)
         self.bottleNeck_T2 = Conv3DBlock(level3, bottleneck_channel, bottleneck=True)
         
-        # Fusion layers for skip connections and bottleneck.
+        #fusion
         self.fuse_skip1 = nn.Conv3d(level1 * 2, level1, kernel_size=1)
         self.fuse_skip2 = nn.Conv3d(level2 * 2, level2, kernel_size=1)
         self.fuse_skip3 = nn.Conv3d(level3 * 2, level3, kernel_size=1)
         self.fuse_bottle = nn.Conv3d(bottleneck_channel * 2, bottleneck_channel, kernel_size=1)
         
-        # Synthesis (decoder) paths for T1 and T2 (separate decoders)
-        # For T1
+        #decoder path
+        #t1
         self.s_block3_T1 = UpConv3DBlock(bottleneck_channel, res_channels=level3)
         self.s_block2_T1 = UpConv3DBlock(level3, res_channels=level2)
         self.s_block1_T1 = UpConv3DBlock(level2, res_channels=level1, last_layer=True, num_classes=num_classes)
-        # For T2
+        #t2
         self.s_block3_T2 = UpConv3DBlock(bottleneck_channel, res_channels=level3)
         self.s_block2_T2 = UpConv3DBlock(level3, res_channels=level2)
         self.s_block1_T2 = UpConv3DBlock(level2, res_channels=level1, last_layer=True, num_classes=num_classes)
@@ -160,34 +161,34 @@ class DualStreamUNet3D(nn.Module):
          - pred_T1: segmentation prediction for T1.
          - pred_T2: segmentation prediction for T2.
         """
-        # Split input into T1 and T2 (each of shape [B, C, D, H, W])
+        #split into t1 and t2
         x_T1 = x[:, 0, ...]
         x_T2 = x[:, 1, ...]
         
-        # Analysis path for T1
+        #encoder path for t1
         out1, res1_T1 = self.a_block1_T1(x_T1)
         out1, res2_T1 = self.a_block2_T1(out1)
         out1, res3_T1 = self.a_block3_T1(out1)
         out1, bottle_T1 = self.bottleNeck_T1(out1)
         
-        # Analysis path for T2
+      #encoder path for t2
         out2, res1_T2 = self.a_block1_T2(x_T2)
         out2, res2_T2 = self.a_block2_T2(out2)
         out2, res3_T2 = self.a_block3_T2(out2)
         out2, bottle_T2 = self.bottleNeck_T2(out2)
         
-        # Fuse skip connections and bottleneck outputs:
+        #skin connections + bottleneck fusion
         fuse_res1 = self.fuse_skip1(torch.cat([res1_T1, res1_T2], dim=1))
         fuse_res2 = self.fuse_skip2(torch.cat([res2_T1, res2_T2], dim=1))
         fuse_res3 = self.fuse_skip3(torch.cat([res3_T1, res3_T2], dim=1))
         fuse_bottle = self.fuse_bottle(torch.cat([bottle_T1, bottle_T2], dim=1))
         
-        # Synthesis path for T1 (using the fused features)
+        #decoder t1
         d3_T1 = self.s_block3_T1(fuse_bottle, fuse_res3)
         d2_T1 = self.s_block2_T1(d3_T1, fuse_res2)
         pred_T1 = self.s_block1_T1(d2_T1, fuse_res1)
         
-        # Synthesis path for T2 (using the same fused features but different decoder weights)
+        #decoder t2
         d3_T2 = self.s_block3_T2(fuse_bottle, fuse_res3)
         d2_T2 = self.s_block2_T2(d3_T2, fuse_res2)
         pred_T2 = self.s_block1_T2(d2_T2, fuse_res1)
@@ -195,16 +196,16 @@ class DualStreamUNet3D(nn.Module):
         return pred_T1, pred_T2
 
 ########################################
-# Testing the Dual-Stream UNet3D
+#testing
 ########################################
 
 if __name__ == '__main__':
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
    
-    # Test the vanilla (single-stream) 3D UNet.
+    #vanilla
     print("****** Vanilla 3D UNet (Single-Stream) ******")
     model_vanilla = UNet3D(in_channels=3, num_classes=1, level_channels=[64, 128, 256], bottleneck_channel=512).to(device)
-    # According to the paper, input is 132×132×116 with 3 channels.
+    #according to the paper, input is 132×132×116 with 3 channels.
     summary(model_vanilla, input_size=(3, 132, 132, 116), batch_size=-1)
     
     dummy_input_vanilla = torch.randn(1, 3, 132, 132, 116).to(device)

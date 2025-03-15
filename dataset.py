@@ -12,7 +12,7 @@ from monai.transforms import (
     NormalizeIntensityd,
     EnsureChannelFirstd,
     DivisiblePadd,
-    ResizeWithPadOrCropd  # Added for resizing
+    ResizeWithPadOrCropd
 )
 
 class CirrMRI3DDataset(Dataset):
@@ -26,12 +26,12 @@ class CirrMRI3DDataset(Dataset):
         """
         self.transform = transform
 
-        # Construct the directories for images and masks.
-        # Example: .../Cirrhosis_T1_3D/Cirrhosis_T1_3D/train_images
+        #construct the directories for images and masks.
+        #example: .../Cirrhosis_T1_3D/Cirrhosis_T1_3D/train_images
         self.image_dir = os.path.join(base_dir, modality, modality, f"{split}_images")
         self.mask_dir = os.path.join(base_dir, modality, modality, f"{split}_masks")
 
-        # List all nii.gz files in the images directory (assuming masks have the same names)
+        #list all nii.gz files in the images directory (assuming masks have the same names)
         self.image_files = sorted([f for f in os.listdir(self.image_dir) if f.endswith('.nii.gz')])
         if not self.image_files:
             raise RuntimeError(f"No .nii.gz files found in {self.image_dir}")
@@ -40,32 +40,29 @@ class CirrMRI3DDataset(Dataset):
         return len(self.image_files)
 
     def __getitem__(self, idx):
-        # Get the file name based on the index
+        #get the file name based on the index
         img_filename = self.image_files[idx]
         img_path = os.path.join(self.image_dir, img_filename)
         mask_path = os.path.join(self.mask_dir, img_filename)  # Assuming same filename for mask
 
-        # Load the image and mask using nibabel
+        #;load the image and mask using nibabel
         img_nii = nib.load(img_path)
         mask_nii = nib.load(mask_path)
         img_array = img_nii.get_fdata()
         mask_array = mask_nii.get_fdata()
 
-        # Compute true volume from the original mask (before any transforms)
-        # Here, we assume the mask is binary (segmented region > 0)
-        voxel_dims = mask_nii.header.get_zooms()  # voxel dimensions (e.g. in mm)
+        #copute true volume from the original mask (before any transforms)
+        #here, we assume the mask is binary (segmented region > 0)
+        voxel_dims = mask_nii.header.get_zooms()  #voxel dimensions (e.g. in mm)
         voxel_volume = float(voxel_dims[0] * voxel_dims[1] * voxel_dims[2])
         true_volume = (mask_array > 0).sum() * voxel_volume
 
-        # Optionally: Convert the numpy arrays to PyTorch tensors.
         img_tensor = torch.tensor(img_array, dtype=torch.float32)
         mask_tensor = torch.tensor(mask_array, dtype=torch.long)
 
-        # Add a channel dimension if your network expects one.
+        #add a channel dimension if your network expects one.
         if img_tensor.ndim == 3:
             img_tensor = img_tensor.unsqueeze(0)
-
-        # Prepare the sample dictionary.
         sample = {
             'image': img_tensor,
             'mask': mask_tensor,
@@ -73,13 +70,11 @@ class CirrMRI3DDataset(Dataset):
             'true_volume': true_volume
         }
 
-        # Apply transformation if provided
         if self.transform:
             sample = self.transform(sample)
 
         return sample
 
-# Example transformations remain the same.
 train_transforms = Compose([
     EnsureChannelFirstd(keys=['image', 'mask']),
     Spacingd(keys=['image', 'mask'], pixdim=(1.0, 1.0, 1.0), mode=('bilinear', 'nearest')),
@@ -117,7 +112,7 @@ def get_dataloaders(base_dir, modality, train_batch_size=2, valid_batch_size=2, 
 
     return train_loader, valid_loader, test_loader
 
-# Example usage:
+#example of how to use
 base_dir = "/content/drive/MyDrive/cirrmri/CirrMRI600+"
 modality = "Cirrhosis_T1_3D"  # or "Cirrhosis_T2_3D"
 train_loader, valid_loader, test_loader = get_dataloaders(base_dir, modality)
